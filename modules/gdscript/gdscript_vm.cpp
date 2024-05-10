@@ -208,6 +208,7 @@ void (*type_init_function_table[])(Variant *) = {
 	&VariantInitializer<PackedVector2Array>::init, // PACKED_VECTOR2_ARRAY.
 	&VariantInitializer<PackedVector3Array>::init, // PACKED_VECTOR3_ARRAY.
 	&VariantInitializer<PackedColorArray>::init, // PACKED_COLOR_ARRAY.
+	&VariantInitializer<PackedVector4Array>::init, // PACKED_VECTOR4_ARRAY.
 };
 
 #if defined(__GNUC__)
@@ -298,6 +299,7 @@ void (*type_init_function_table[])(Variant *) = {
 		&&OPCODE_ITERATE_BEGIN_PACKED_VECTOR2_ARRAY,     \
 		&&OPCODE_ITERATE_BEGIN_PACKED_VECTOR3_ARRAY,     \
 		&&OPCODE_ITERATE_BEGIN_PACKED_COLOR_ARRAY,       \
+		&&OPCODE_ITERATE_BEGIN_PACKED_VECTOR4_ARRAY,     \
 		&&OPCODE_ITERATE_BEGIN_OBJECT,                   \
 		&&OPCODE_ITERATE,                                \
 		&&OPCODE_ITERATE_INT,                            \
@@ -318,6 +320,7 @@ void (*type_init_function_table[])(Variant *) = {
 		&&OPCODE_ITERATE_PACKED_VECTOR2_ARRAY,           \
 		&&OPCODE_ITERATE_PACKED_VECTOR3_ARRAY,           \
 		&&OPCODE_ITERATE_PACKED_COLOR_ARRAY,             \
+		&&OPCODE_ITERATE_PACKED_VECTOR4_ARRAY,           \
 		&&OPCODE_ITERATE_OBJECT,                         \
 		&&OPCODE_STORE_GLOBAL,                           \
 		&&OPCODE_STORE_NAMED_GLOBAL,                     \
@@ -358,6 +361,7 @@ void (*type_init_function_table[])(Variant *) = {
 		&&OPCODE_TYPE_ADJUST_PACKED_VECTOR2_ARRAY,       \
 		&&OPCODE_TYPE_ADJUST_PACKED_VECTOR3_ARRAY,       \
 		&&OPCODE_TYPE_ADJUST_PACKED_COLOR_ARRAY,         \
+		&&OPCODE_TYPE_ADJUST_PACKED_VECTOR4_ARRAY,       \
 		&&OPCODE_ASSERT,                                 \
 		&&OPCODE_BREAKPOINT,                             \
 		&&OPCODE_LINE,                                   \
@@ -430,6 +434,7 @@ void (*type_init_function_table[])(Variant *) = {
 #define OP_GET_PACKED_VECTOR2_ARRAY get_vector2_array
 #define OP_GET_PACKED_VECTOR3_ARRAY get_vector3_array
 #define OP_GET_PACKED_COLOR_ARRAY get_color_array
+#define OP_GET_PACKED_VECTOR4_ARRAY get_vector4_array
 #define OP_GET_TRANSFORM3D get_transform
 #define OP_GET_TRANSFORM2D get_transform2d
 #define OP_GET_PROJECTION get_projection
@@ -884,23 +889,27 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 #endif
 #ifdef DEBUG_ENABLED
 				if (!valid) {
-					Object *obj = dst->get_validated_object();
-					String v = index->operator String();
-					bool read_only_property = false;
-					if (obj) {
-						read_only_property = ClassDB::has_property(obj->get_class_name(), v) && (ClassDB::get_property_setter(obj->get_class_name(), v) == StringName());
-					}
-					if (read_only_property) {
-						err_text = vformat(R"(Cannot set value into property "%s" (on base "%s") because it is read-only.)", v, _get_var_type(dst));
+					if (dst->is_read_only()) {
+						err_text = "Invalid assignment on read-only value (on base: '" + _get_var_type(dst) + "').";
 					} else {
-						if (!v.is_empty()) {
-							v = "'" + v + "'";
-						} else {
-							v = "of type '" + _get_var_type(index) + "'";
+						Object *obj = dst->get_validated_object();
+						String v = index->operator String();
+						bool read_only_property = false;
+						if (obj) {
+							read_only_property = ClassDB::has_property(obj->get_class_name(), v) && (ClassDB::get_property_setter(obj->get_class_name(), v) == StringName());
 						}
-						err_text = "Invalid assignment of property or key " + v + " with value of type '" + _get_var_type(value) + "' on a base object of type '" + _get_var_type(dst) + "'.";
-						if (err_code == Variant::VariantSetError::SET_INDEXED_ERR) {
-							err_text = "Invalid assignment of index " + v + " (on base: '" + _get_var_type(dst) + "') with value of type '" + _get_var_type(value) + "'.";
+						if (read_only_property) {
+							err_text = vformat(R"(Cannot set value into property "%s" (on base "%s") because it is read-only.)", v, _get_var_type(dst));
+						} else {
+							if (!v.is_empty()) {
+								v = "'" + v + "'";
+							} else {
+								v = "of type '" + _get_var_type(index) + "'";
+							}
+							err_text = "Invalid assignment of property or key " + v + " with value of type '" + _get_var_type(value) + "' on a base object of type '" + _get_var_type(dst) + "'.";
+							if (err_code == Variant::VariantSetError::SET_INDEXED_ERR) {
+								err_text = "Invalid assignment of index " + v + " (on base: '" + _get_var_type(dst) + "') with value of type '" + _get_var_type(value) + "'.";
+							}
 						}
 					}
 					OPCODE_BREAK;
@@ -926,13 +935,17 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 
 #ifdef DEBUG_ENABLED
 				if (!valid) {
-					String v = index->operator String();
-					if (!v.is_empty()) {
-						v = "'" + v + "'";
+					if (dst->is_read_only()) {
+						err_text = "Invalid assignment on read-only value (on base: '" + _get_var_type(dst) + "').";
 					} else {
-						v = "of type '" + _get_var_type(index) + "'";
+						String v = index->operator String();
+						if (!v.is_empty()) {
+							v = "'" + v + "'";
+						} else {
+							v = "of type '" + _get_var_type(index) + "'";
+						}
+						err_text = "Invalid assignment of property or key " + v + " with value of type '" + _get_var_type(value) + "' on a base object of type '" + _get_var_type(dst) + "'.";
 					}
-					err_text = "Invalid assignment of property or key " + v + " with value of type '" + _get_var_type(value) + "' on a base object of type '" + _get_var_type(dst) + "'.";
 					OPCODE_BREAK;
 				}
 #endif
@@ -958,13 +971,17 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 
 #ifdef DEBUG_ENABLED
 				if (oob) {
-					String v = index->operator String();
-					if (!v.is_empty()) {
-						v = "'" + v + "'";
+					if (dst->is_read_only()) {
+						err_text = "Invalid assignment on read-only value (on base: '" + _get_var_type(dst) + "').";
 					} else {
-						v = "of type '" + _get_var_type(index) + "'";
+						String v = index->operator String();
+						if (!v.is_empty()) {
+							v = "'" + v + "'";
+						} else {
+							v = "of type '" + _get_var_type(index) + "'";
+						}
+						err_text = "Out of bounds set index " + v + " (on base: '" + _get_var_type(dst) + "')";
 					}
-					err_text = "Out of bounds set index " + v + " (on base: '" + _get_var_type(dst) + "')";
 					OPCODE_BREAK;
 				}
 #endif
@@ -1092,15 +1109,19 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 
 #ifdef DEBUG_ENABLED
 				if (!valid) {
-					Object *obj = dst->get_validated_object();
-					bool read_only_property = false;
-					if (obj) {
-						read_only_property = ClassDB::has_property(obj->get_class_name(), *index) && (ClassDB::get_property_setter(obj->get_class_name(), *index) == StringName());
-					}
-					if (read_only_property) {
-						err_text = vformat(R"(Cannot set value into property "%s" (on base "%s") because it is read-only.)", String(*index), _get_var_type(dst));
+					if (dst->is_read_only()) {
+						err_text = "Invalid assignment on read-only value (on base: '" + _get_var_type(dst) + "').";
 					} else {
-						err_text = "Invalid assignment of property or key '" + String(*index) + "' with value of type '" + _get_var_type(value) + "' on a base object of type '" + _get_var_type(dst) + "'.";
+						Object *obj = dst->get_validated_object();
+						bool read_only_property = false;
+						if (obj) {
+							read_only_property = ClassDB::has_property(obj->get_class_name(), *index) && (ClassDB::get_property_setter(obj->get_class_name(), *index) == StringName());
+						}
+						if (read_only_property) {
+							err_text = vformat(R"(Cannot set value into property "%s" (on base "%s") because it is read-only.)", String(*index), _get_var_type(dst));
+						} else {
+							err_text = "Invalid assignment of property or key '" + String(*index) + "' with value of type '" + _get_var_type(value) + "' on a base object of type '" + _get_var_type(dst) + "'.";
+						}
 					}
 					OPCODE_BREAK;
 				}
@@ -3043,6 +3064,7 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 			OPCODE_ITERATE_BEGIN_PACKED_ARRAY(VECTOR2, Vector2, get_vector2_array, VECTOR2, Vector2, get_vector2);
 			OPCODE_ITERATE_BEGIN_PACKED_ARRAY(VECTOR3, Vector3, get_vector3_array, VECTOR3, Vector3, get_vector3);
 			OPCODE_ITERATE_BEGIN_PACKED_ARRAY(COLOR, Color, get_color_array, COLOR, Color, get_color);
+			OPCODE_ITERATE_BEGIN_PACKED_ARRAY(VECTOR4, Vector4, get_vector4_array, VECTOR4, Vector4, get_vector4);
 
 			OPCODE(OPCODE_ITERATE_BEGIN_OBJECT) {
 				CHECK_SPACE(4);
@@ -3378,6 +3400,7 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 			OPCODE_ITERATE_PACKED_ARRAY(VECTOR2, Vector2, get_vector2_array, get_vector2);
 			OPCODE_ITERATE_PACKED_ARRAY(VECTOR3, Vector3, get_vector3_array, get_vector3);
 			OPCODE_ITERATE_PACKED_ARRAY(COLOR, Color, get_color_array, get_color);
+			OPCODE_ITERATE_PACKED_ARRAY(VECTOR4, Vector4, get_vector4_array, get_vector4);
 
 			OPCODE(OPCODE_ITERATE_OBJECT) {
 				CHECK_SPACE(4);
@@ -3509,6 +3532,7 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 			OPCODE_TYPE_ADJUST(PACKED_VECTOR2_ARRAY, PackedVector2Array);
 			OPCODE_TYPE_ADJUST(PACKED_VECTOR3_ARRAY, PackedVector3Array);
 			OPCODE_TYPE_ADJUST(PACKED_COLOR_ARRAY, PackedColorArray);
+			OPCODE_TYPE_ADJUST(PACKED_VECTOR4_ARRAY, PackedVector4Array);
 
 			OPCODE(OPCODE_ASSERT) {
 				CHECK_SPACE(3);

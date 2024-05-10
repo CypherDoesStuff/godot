@@ -269,7 +269,7 @@ void EditorFileSystem::_scan_filesystem() {
 
 					FileCache fc;
 					fc.type = split[1];
-					if (fc.type.find("/") != -1) {
+					if (fc.type.contains("/")) {
 						fc.type = fc.type.get_slice("/", 0);
 						fc.resource_script_class = fc.type.get_slice("/", 1);
 					}
@@ -2328,8 +2328,9 @@ void EditorFileSystem::reimport_file_with_custom_parameters(const String &p_file
 }
 
 void EditorFileSystem::_reimport_thread(uint32_t p_index, ImportThreadData *p_import_data) {
-	p_import_data->max_index = MAX(p_import_data->reimport_from + int(p_index), p_import_data->max_index);
-	_reimport_file(p_import_data->reimport_files[p_import_data->reimport_from + p_index].path);
+	int current_max = p_import_data->reimport_from + int(p_index);
+	p_import_data->max_index.exchange_if_greater(current_max);
+	_reimport_file(p_import_data->reimport_files[current_max].path);
 }
 
 void EditorFileSystem::reimport_files(const Vector<String> &p_files) {
@@ -2409,15 +2410,15 @@ void EditorFileSystem::reimport_files(const Vector<String> &p_files) {
 					importer->import_threaded_begin();
 
 					ImportThreadData tdata;
-					tdata.max_index = from;
+					tdata.max_index.set(from);
 					tdata.reimport_from = from;
 					tdata.reimport_files = reimport_files.ptr();
 
 					WorkerThreadPool::GroupID group_task = WorkerThreadPool::get_singleton()->add_template_group_task(this, &EditorFileSystem::_reimport_thread, &tdata, i - from + 1, -1, false, vformat(TTR("Import resources of type: %s"), reimport_files[from].importer));
 					int current_index = from - 1;
 					do {
-						if (current_index < tdata.max_index) {
-							current_index = tdata.max_index;
+						if (current_index < tdata.max_index.get()) {
+							current_index = tdata.max_index.get();
 							pr.step(reimport_files[current_index].path.get_file(), current_index);
 						}
 						OS::get_singleton()->delay_usec(1);
@@ -2706,7 +2707,7 @@ void EditorFileSystem::_update_extensions() {
 }
 
 void EditorFileSystem::add_import_format_support_query(Ref<EditorFileSystemImportFormatSupportQuery> p_query) {
-	ERR_FAIL_COND(import_support_queries.find(p_query) != -1);
+	ERR_FAIL_COND(import_support_queries.has(p_query));
 	import_support_queries.push_back(p_query);
 }
 void EditorFileSystem::remove_import_format_support_query(Ref<EditorFileSystemImportFormatSupportQuery> p_query) {
