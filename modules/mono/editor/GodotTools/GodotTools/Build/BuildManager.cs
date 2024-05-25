@@ -12,6 +12,7 @@ namespace GodotTools.Build
     public static class BuildManager
     {
         private static BuildInfo? _buildInProgress;
+        private static Task<bool>? _buildTask;
 
         public const string MsBuildIssuesFileName = "msbuild_issues.csv";
         private const string MsBuildLogFileName = "msbuild_log.txt";
@@ -223,8 +224,17 @@ namespace GodotTools.Build
 
             if (_buildInProgress != null)
             {
+                /*
                 Internal.EditorToaster_PopupStr(".NET Build already in progress!", Internal.EditorToasterSeverity.Error);
                 return false; // Build already in progress
+                */
+
+                if(_buildTask != null)
+                {
+                    return _buildTask.Result;
+                }
+
+                return false;
             }
 
             bool success;
@@ -302,7 +312,8 @@ namespace GodotTools.Build
             if (_buildInProgress != null)
                 return false; // Already a build in progress.
 
-            bool success = await BuildAsync(buildInfo);
+            _buildTask = Task.Run(() => BuildAsync(buildInfo));
+            bool success = await _buildTask;
 
             if (!success)
             {
